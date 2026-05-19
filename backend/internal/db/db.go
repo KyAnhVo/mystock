@@ -2,7 +2,6 @@ package db
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"strings"
 
@@ -14,8 +13,10 @@ type DBQueryMachine struct {
 	querier *pgxpool.Pool
 }
 
+// Creates a new DB connection using URL from .env
 func Init() (*DBQueryMachine, error) {
-	dbPool, err := pgxpool.New(context.Background(), config.Cfg.DBConn)
+	config := config.GetCfg()
+	dbPool, err := pgxpool.New(context.Background(), config.DBConn)
 	if err != nil {
 		return nil, err
 	}
@@ -23,6 +24,7 @@ func Init() (*DBQueryMachine, error) {
 	return &DBQueryMachine{querier: dbPool}, nil
 }
 
+// Reset the schema using data in ./internal/db/migrations
 func (db *DBQueryMachine) ResetSchema() error {
 	ctx := context.Background()
 	entries, err := os.ReadDir("internal/db/migrations")
@@ -37,6 +39,20 @@ func (db *DBQueryMachine) ResetSchema() error {
 	defer tx.Rollback(ctx)
 
 	for _, entry := range entries {
+		if !strings.HasSuffix(entry.Name(), ".down.sql") {
+			continue
+		}
+		content, err := os.ReadFile("./internal/db/migrations/" + entry.Name())
+		if err != nil {
+			return err
+		}
+		_, err = tx.Exec(ctx, string(content))
+		if err != nil {
+			return err
+		}
+	}
+
+	for _, entry := range entries {
 		if !strings.HasSuffix(entry.Name(), ".up.sql") {
 			continue
 		}
@@ -44,9 +60,9 @@ func (db *DBQueryMachine) ResetSchema() error {
 		if err != nil {
 			return err
 		}
-		_, err = db.querier.Exec(ctx, string(content))
+		_, err = tx.Exec(ctx, string(content))
 		if err != nil {
-			fmt.Println("failed to exec:", entry.Name(), err.Error())
+			return err
 		}
 	}
 

@@ -23,10 +23,11 @@ type TickerOverview struct {
 }
 
 func OverviewTicker(ticker string, handler *http.Client) (*TickerOverview, error) {
+	config := config.GetCfg()
 	resp, err := handler.Get(
-		config.Cfg.StockApiHeader +
+		config.StockApiHeader +
 			"/v3/reference/tickers/" + ticker +
-			"?apiKey=" + config.Cfg.StockApiKey,
+			"?apiKey=" + config.StockApiKey,
 	)
 	if err != nil {
 		return nil, errors.New("cannot get data")

@@ -1,9 +1,15 @@
 package config
 
-import "os"
+import (
+	"github.com/joho/godotenv"
+	"os"
+)
 
 // Global config from env
-var Cfg Config
+var cfg Config
+
+// True if Cfg is loaded
+var cfgLoaded bool
 
 type Config struct {
 	// Program, connection configs
@@ -25,6 +31,15 @@ func Load() Config {
 	}
 }
 
-func Init() {
-	Cfg = Load()
+func GetCfg() *Config {
+	if !cfgLoaded {
+		initCfg()
+	}
+	return &cfg
+}
+
+func initCfg() {
+	godotenv.Load()
+	cfg = Load()
+	cfgLoaded = true
 }
