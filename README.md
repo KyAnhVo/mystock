@@ -9,11 +9,16 @@ A stock web application with personalized suggestions for stocks to buy (with AI
 
 ## How do we suggest stocks for you?
 
-Consider some portfolio. A stock that fits a portfolio must have a combination of expanding
-the portfolio's breadth (variety), strong stock, etc. We build a neural network system to 
-evaluate a stock's S's fit to a portfolio P. Essentially, the function built here is
-`f: S x pow(S) -> [0, 1]` where the input is a stock S and a portfolio P which is a subset
-of all stocks, returning a grade from 0 to 1 of that S wrt P.
+### High level
+We model the portfolio management job as a player-v-market game. We consider the following
+game with actions: `<buy|sell> <stock>` or `do nothing` each trading day, and we compute
+reward relative to various index fund benchmarks.
 
-Our world will be modeled as a game, where it is player against market game. We consider the following
-game with actions: `<buy|sell> <stock>` or `do nothing`, and we model our reward wrt some index fund.
+### Details: DQN
+We train a DQN-based (e.g. DQN, DDQN, Dueling DQN, Noisy DQN, etc.) based on historical data,
+simulating daily trading episodes. The game's initial state will be some form of randomization
+of stock values (not totally random, created with a generator that is trained from example portfolios).
+
+### Formal defition
+Formally, we approximate a function`f: S \times pow(S) -> [0, 1]` where `S: {s | s is a stock in US}`
+and for each porfolio P, we find the stock S: `S = argmax_s(f(s, P))`
