@@ -29,6 +29,7 @@ func OverviewTicker(ticker string, handler *http.Client) (*TickerOverview, error
 			"/v3/reference/tickers/" + ticker +
 			"?apiKey=" + config.StockApiKey,
 	)
+
 	if err != nil {
 		return nil, errors.New("cannot get data")
 	}
