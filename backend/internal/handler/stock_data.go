@@ -22,7 +22,7 @@ type TickerOverview struct {
 	Adress      *Adress `json:"address"`
 }
 
-func overviewTicker(ticker string, handler *http.Client) (*TickerOverview, error) {
+func OverviewTicker(ticker string, handler *http.Client) (*TickerOverview, error) {
 	resp, err := handler.Get(
 		config.Cfg.StockApiHeader +
 			"/v3/reference/tickers/" + ticker +
