@@ -1,6 +1,6 @@
-CREATE SCHEMA market_data;
+CREATE SCHEMA IF NOT EXISTS market_data;
 
-CREATE TABLE market_data.ticker (
+CREATE TABLE IF NOT EXISTS market_data.ticker (
   id            BIGSERIAL   PRIMARY KEY,
   ticker        TEXT        NOT NULL UNIQUE,
   name          TEXT        NOT NULL,
@@ -8,7 +8,7 @@ CREATE TABLE market_data.ticker (
   description   TEXT
 );
 
-CREATE TABLE market_data.stock (
+CREATE TABLE IF NOT EXISTS market_data.stock (
   ticker_id     BIGINT,
   date          DATE,
   open          NUMERIC(12, 4)  NOT NULL,
@@ -19,5 +19,5 @@ CREATE TABLE market_data.stock (
   adj_close     NUMERIC(12, 4)  NOT NULL,
 
   CONSTRAINT pk_stock   PRIMARY KEY (ticker_id, date),
-  CONSTRAINT fk_ticker  FOREIGN KEY (ticker_id) REFERENCES market_data.tickers(id)
+  CONSTRAINT fk_ticker  FOREIGN KEY (ticker_id) REFERENCES market_data.ticker(id)
 );
