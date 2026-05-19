@@ -1,0 +1,7 @@
+*
+!.gitignore
+!main.go
+!*.go
+!*.py
+!*.sql
+!*/
