@@ -1,7 +1,16 @@
 *
 !.gitignore
-!main.go
+
+# golang files
 !*.go
+!*.mod
+!*.sum
+
+# python files
 !*.py
+
+# sql files
 !*.sql
+
+# directories
 !*/
