@@ -10,7 +10,7 @@ import (
 )
 
 type DBQueryMachine struct {
-	querier *pgxpool.Pool
+	Querier *pgxpool.Pool
 }
 
 // Creates a new DB connection using URL from .env
@@ -21,7 +21,32 @@ func Init() (*DBQueryMachine, error) {
 		return nil, err
 	}
 
-	return &DBQueryMachine{querier: dbPool}, nil
+	return &DBQueryMachine{Querier: dbPool}, nil
+}
+
+func (db *DBQueryMachine) RunQuery(query string) error {
+	ctx := context.Background()
+	_, err := db.Querier.Exec(ctx, query)
+	return err
+}
+
+// Runs a sequence of queries, atomic
+func (db *DBQueryMachine) RunQueries(queries []string) error {
+	ctx := context.Background()
+	tx, err := db.Querier.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	for _, query := range queries {
+		_, err := tx.Exec(ctx, query)
+		if err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit(ctx)
 }
 
 // Reset the schema using data in ./internal/db/migrations
@@ -32,7 +57,7 @@ func (db *DBQueryMachine) ResetSchema() error {
 		return err
 	}
 
-	tx, err := db.querier.Begin(ctx)
+	tx, err := db.Querier.Begin(ctx)
 	if err != nil {
 		return err
 	}
