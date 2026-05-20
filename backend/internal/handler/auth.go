@@ -1,6 +1,7 @@
-package auth
+package handler
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -23,6 +24,10 @@ type AuthMiddleware struct {
 	dummy_hash []byte
 	is_secure  bool
 }
+
+type contextKey string
+
+const userIDKey contextKey = "user_id"
 
 var authMiddleware *AuthMiddleware
 
@@ -239,44 +244,63 @@ func (auth *AuthMiddleware) Signup(w http.ResponseWriter, r *http.Request) {
 // If authentication fails, reject the attempt to run the function.
 // If authentication successes, runs the function with the user id in it.
 //
-// Note: function must have a user_id field which is a UUID.
+// Note: function's context will include a user_id field which should be treated
+// as a uuid.UUID type. This value is only retrievable via `RetrieveUserID(r.Context())`
 func (auth *AuthMiddleware) Authenticate(
-	w http.ResponseWriter,
-	r *http.Request,
-	fn func(http.ResponseWriter, *http.Request, uuid.UUID),
-) {
-	cookie, err := r.Cookie("session-token")
-	if err != nil {
-		w.WriteHeader(401)
-		fmt.Fprintln(w, "authentication error: session cookie not included")
-		return
-	}
-	session_token := cookie.Value
-
-	var expires_at time.Time
-	var user_id uuid.UUID
-	ctx := r.Context()
-	err = auth.DBQuerier.Querier.QueryRow(
-		ctx,
-		"SELECT user_id, expires_at FROM users.session WHERE session_token = $1",
-		session_token,
-	).Scan(&user_id, &expires_at)
-	if err != nil {
-		if err == pgx.ErrNoRows {
+	fn func(http.ResponseWriter, *http.Request),
+) func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		cookie, err := r.Cookie("session-token")
+		if err != nil {
 			w.WriteHeader(401)
-			fmt.Fprintln(w, "authentication error: no session found")
-		} else {
-			w.WriteHeader(500)
-			fmt.Fprintln(w, "server error")
+			fmt.Fprintln(w, "authentication error: session cookie not included")
+			return
+		}
+		session_token := cookie.Value
+
+		// verifies that session exists and have not expired
+		var expires_at time.Time
+		var user_id uuid.UUID
+		err = auth.DBQuerier.Querier.QueryRow(
+			r.Context(),
+			"SELECT user_id, expires_at FROM users.session WHERE session_token = $1",
+			session_token,
+		).Scan(&user_id, &expires_at)
+		if err != nil {
+			if err == pgx.ErrNoRows {
+				w.WriteHeader(401)
+				fmt.Fprintln(w, "authentication error: no session found")
+			} else {
+				w.WriteHeader(500)
+				fmt.Fprintln(w, "server error")
+			}
+
+			return
+		}
+		if expires_at.Before(time.Now()) {
+			w.WriteHeader(401)
+			fmt.Fprintln(w, "authentication error: session expired")
+			return
 		}
 
-		return
-	}
-	if expires_at.Before(time.Now()) {
-		w.WriteHeader(401)
-		fmt.Fprintln(w, "authentication error: session expired")
-		return
-	}
+		// create new context for function, then call that function
+		ctx := context.WithValue(r.Context(), userIDKey, user_id)
+		fn(w, r.WithContext(ctx))
 
-	fn(w, r, user_id)
+	}
+}
+
+// This function gets the user id from the context given inside
+// the request which has been processed by the auth.Aunthenticate middleware.
+func RetrieveUserID(ctx context.Context) (uuid.UUID, bool) {
+	id, ok := ctx.Value(userIDKey).(uuid.UUID)
+	return id, ok
+}
+
+// This function aims to be compatible to Middleware interface,
+// which does exactly what Authenticate does.
+func (auth *AuthMiddleware) Middleware(
+	fn func(http.ResponseWriter, *http.Request),
+) func(http.ResponseWriter, *http.Request) {
+	return auth.Authenticate(fn)
 }

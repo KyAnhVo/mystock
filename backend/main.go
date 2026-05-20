@@ -5,9 +5,8 @@ import (
 	"net/http"
 
 	"github.com/KyAnhVo/mystock/config"
-	"github.com/KyAnhVo/mystock/internal/auth"
 	"github.com/KyAnhVo/mystock/internal/db"
-	"github.com/google/uuid"
+	"github.com/KyAnhVo/mystock/internal/handler"
 )
 
 func main() {
@@ -17,15 +16,17 @@ func main() {
 		fmt.Println("fail to connect to DB")
 		return
 	}
-	auth := auth.Init(database)
+	auth := handler.Init(database)
 
 	// Authentication
 	http.HandleFunc("POST /api/auth/login", auth.Login)
 	http.HandleFunc("POST /api/auth/logout", auth.Logout)
 	http.HandleFunc("POST /api/auth/signup", auth.Signup)
-	http.HandleFunc("GET /api/auth/test", func(w http.ResponseWriter, r *http.Request) {
-		auth.Authenticate(w, r, func(w http.ResponseWriter, r *http.Request, user_id uuid.UUID) {
+	http.HandleFunc(
+		"GET /api/auth/test",
+		auth.Authenticate(func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
+			user_id, _ := handler.RetrieveUserID(ctx)
 			var username string
 			err := database.Querier.QueryRow(
 				ctx,
@@ -39,8 +40,8 @@ func main() {
 			}
 			w.WriteHeader(200)
 			fmt.Fprintf(w, "Hello, %v\n", username)
-		})
-	})
+		}),
+	)
 
 	// Finally, run it.
 	http.ListenAndServe(":8080", nil)
