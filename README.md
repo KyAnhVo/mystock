@@ -22,3 +22,6 @@ of stock values (not totally random, created with a generator that is trained fr
 ### Formal definition
 Formally, we approximate a function`f: S × pow(S) -> [0, 1]` where `S: {s | s is a stock in US}`
 and for each porfolio P, we find the stock S: `S = argmax_s(f(s, P))`
+
+### Note:
+More information in `/ideas/ml-model`
