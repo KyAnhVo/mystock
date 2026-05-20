@@ -105,7 +105,12 @@ func (auth *AuthMiddleware) Login(w http.ResponseWriter, r *http.Request) {
 	bytes := make([]byte, 32)
 	rand.Read(bytes)
 	session_token := hex.EncodeToString(bytes)
-	_, err = auth.DBQuerier.Querier.Exec(ctx, "INSERT INTO users.session (session_token, user_id) VALUES ($1, $2)", session_token, user_id)
+	_, err = auth.DBQuerier.Querier.Exec(
+		ctx,
+		"INSERT INTO users.session (session_token, user_id) VALUES ($1, $2)",
+		session_token,
+		user_id,
+	)
 	if err != nil {
 		w.WriteHeader(500)
 		fmt.Fprintln(w, "server error: cannot create session")
@@ -122,8 +127,40 @@ func (auth *AuthMiddleware) Login(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(200)
 }
 
+// Logs the user out, and sends a "delete session" cookie.
 func (auth *AuthMiddleware) Logout(w http.ResponseWriter, r *http.Request) {
+	// if session token is wrong, authenticate error.
+	cookie, err := r.Cookie("session-token")
+	if err != nil {
+		w.WriteHeader(401)
+		fmt.Fprintln(w, "authentication error: session cookie not included")
+		return
+	}
 
+	// remove the current session
+	session_token := cookie.Value
+	ctx := r.Context()
+	_, err = auth.DBQuerier.Querier.Exec(
+		ctx,
+		"DELETE FROM users.session WHERE session_token = $1",
+		session_token,
+	)
+	if err != nil {
+		// if deletion fail, send 500 and report so
+		w.WriteHeader(500)
+		fmt.Fprintln(w, "cannot log the user out")
+		return
+	}
+
+	// tell the browser to delete this cookie.
+	http.SetCookie(w, &http.Cookie{
+		Name:     "session-token",
+		Value:    "",
+		HttpOnly: true,
+		Secure:   true,
+		MaxAge:   -1,
+	})
+	w.WriteHeader(200)
 }
 
 func (auth *AuthMiddleware) Signup(w http.ResponseWriter, r *http.Request) {
@@ -135,7 +172,11 @@ func (auth *AuthMiddleware) Signup(w http.ResponseWriter, r *http.Request) {
 // If authentication successes, runs the function with the user id in it.
 //
 // Note: function must have a user_id field which is a UUID.
-func (auth *AuthMiddleware) Authenticate(w http.ResponseWriter, r *http.Request, fn func(http.ResponseWriter, *http.Request, uuid.UUID)) {
+func (auth *AuthMiddleware) Authenticate(
+	w http.ResponseWriter,
+	r *http.Request,
+	fn func(http.ResponseWriter, *http.Request, uuid.UUID),
+) {
 	cookie, err := r.Cookie("session-token")
 	if err != nil {
 		w.WriteHeader(401)
@@ -147,7 +188,11 @@ func (auth *AuthMiddleware) Authenticate(w http.ResponseWriter, r *http.Request,
 	var expires_at time.Time
 	var user_id uuid.UUID
 	ctx := r.Context()
-	err = auth.DBQuerier.Querier.QueryRow(ctx, "SELECT user_id, expires_at FROM users.session WHERE session_token = $1", session_token).Scan(&user_id, &expires_at)
+	err = auth.DBQuerier.Querier.QueryRow(
+		ctx,
+		"SELECT user_id, expires_at FROM users.session WHERE session_token = $1",
+		session_token,
+	).Scan(&user_id, &expires_at)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			w.WriteHeader(401)
