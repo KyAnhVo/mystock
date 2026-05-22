@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/mail"
 	"time"
@@ -22,6 +23,7 @@ import (
 type AuthMiddleware struct {
 	DBQuerier  *db.DBQueryMachine
 	dummy_hash []byte
+	logger     *slog.Logger
 	is_secure  bool
 }
 
@@ -31,12 +33,14 @@ const userIDKey contextKey = "user_id"
 
 var authMiddleware *AuthMiddleware
 
-func Init(db *db.DBQueryMachine) *AuthMiddleware {
+func NewAuthMiddleware(db *db.DBQueryMachine, logger *slog.Logger) *AuthMiddleware {
 	if authMiddleware == nil {
 		dummy_hash, _ := bcrypt.GenerateFromPassword([]byte("dummy"), bcrypt.DefaultCost)
 		authMiddleware = &AuthMiddleware{
 			DBQuerier:  db,
 			dummy_hash: dummy_hash,
+			is_secure:  false,
+			logger:     logger,
 		}
 	}
 
@@ -56,17 +60,20 @@ func (auth *AuthMiddleware) Login(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.WriteHeader(405)
 		fmt.Fprintln(w, "authentication error: malformed request body")
+		auth.logger.Error("AuthMiddleware: Login: malformed request body", "body", r.Body)
 		return
 	}
 
 	if len(login_attempt.Email) == 0 && len(login_attempt.Username) == 0 {
 		w.WriteHeader(400)
 		fmt.Fprintln(w, "authentication error: missing email and username")
+		auth.logger.Error("AuthMiddleware: Login: missing email and username", "body", r.Body)
 		return
 	}
 	if len(login_attempt.Email) != 0 && len(login_attempt.Username) != 0 {
 		w.WriteHeader(400)
 		fmt.Fprintln(w, "authentication error: only specify one of username or email")
+		auth.logger.Error("AuthMiddleware: Login: specified both email and username", "body", r.Body)
 		return
 	}
 
@@ -91,9 +98,11 @@ func (auth *AuthMiddleware) Login(w http.ResponseWriter, r *http.Request) {
 			_ = bcrypt.CompareHashAndPassword(auth.dummy_hash, []byte(login_attempt.Password))
 			w.WriteHeader(401)
 			fmt.Fprintln(w, "authentication error: username or email or password is incorrect")
+			auth.logger.Error("AuthMiddleware: Login: wrong username/email/password", "address", r.RemoteAddr)
 		} else {
 			w.WriteHeader(500)
 			fmt.Fprintln(w, "server error")
+			auth.logger.Error("AuthMiddleware: Login: access DB error", "err", err.Error())
 		}
 		return
 	}
@@ -101,6 +110,7 @@ func (auth *AuthMiddleware) Login(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.WriteHeader(401)
 		fmt.Fprintln(w, "authentication error: username or email or password is incorrect")
+		auth.logger.Error("AuthMiddleware: Login: wrong username/email/password", "address", r.RemoteAddr)
 		return
 	}
 
@@ -117,6 +127,7 @@ func (auth *AuthMiddleware) Login(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.WriteHeader(500)
 		fmt.Fprintln(w, "server error: cannot create session")
+		auth.logger.Error("AuthMiddleware: Login: create session error", "err", err.Error())
 		return
 	}
 
@@ -128,6 +139,7 @@ func (auth *AuthMiddleware) Login(w http.ResponseWriter, r *http.Request) {
 		Secure:   auth.is_secure,
 	})
 	w.WriteHeader(200)
+	auth.logger.Info("AuthMiddleware: Login: success", "address", r.RemoteAddr)
 }
 
 // Logs the user out, and sends a "delete session" cookie.
@@ -137,6 +149,7 @@ func (auth *AuthMiddleware) Logout(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.WriteHeader(401)
 		fmt.Fprintln(w, "authentication error: session cookie not included")
+		auth.logger.Error("AuthMiddleware: Logout: session cookie not included", "address", r.RemoteAddr)
 		return
 	}
 
@@ -152,6 +165,7 @@ func (auth *AuthMiddleware) Logout(w http.ResponseWriter, r *http.Request) {
 		// if deletion fail, send 500 and report so
 		w.WriteHeader(500)
 		fmt.Fprintln(w, "cannot log the user out")
+		auth.logger.Error("AuthMiddleware: Logout: failure to log user out", "err", err)
 		return
 	}
 
@@ -164,6 +178,10 @@ func (auth *AuthMiddleware) Logout(w http.ResponseWriter, r *http.Request) {
 		MaxAge:   -1,
 	})
 	w.WriteHeader(200)
+	auth.logger.Info("AuthMiddleware: Logout: successfully logged user out",
+		"address", r.RemoteAddr,
+		"session token", session_token,
+	)
 }
 
 // Creates an account for a user.

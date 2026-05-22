@@ -2,7 +2,9 @@ package main
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
+	"os"
 
 	"github.com/KyAnhVo/mystock/config"
 	"github.com/KyAnhVo/mystock/internal/db"
@@ -16,7 +18,12 @@ func main() {
 		fmt.Println("fail to connect to DB")
 		return
 	}
-	auth := handler.Init(database)
+	logger, err := createHandler()
+	if err != nil {
+		fmt.Println("logger creation error")
+		os.Exit(1)
+	}
+	auth := handler.NewAuthMiddleware(database, logger)
 
 	// Authentication
 	http.HandleFunc("POST /api/auth/login", auth.Login)
@@ -45,4 +52,24 @@ func main() {
 
 	// Finally, run it.
 	http.ListenAndServe(":8080", nil)
+}
+
+func createHandler() (*slog.Logger, error) {
+	handlerOption := &slog.HandlerOptions{
+		Level:     slog.LevelDebug,
+		AddSource: true,
+	}
+
+	logFile, err := os.OpenFile("./backend.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return nil, err
+	}
+
+	multi := slog.NewMultiHandler(
+		slog.NewJSONHandler(logFile, handlerOption),
+		slog.NewJSONHandler(os.Stdout, handlerOption),
+	)
+	logger := slog.New(multi)
+
+	return logger, nil
 }
