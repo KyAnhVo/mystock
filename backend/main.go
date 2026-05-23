@@ -24,7 +24,7 @@ func main() {
 		os.Exit(1)
 	}
 	auth := handler.NewAuthMiddleware(database, logger)
-	stockHandler := handler.NewStockHandler(database)
+	stockHandler := handler.NewStockHandler(database, logger)
 
 	// Authentication
 	http.HandleFunc("POST /api/auth/login", auth.Login)

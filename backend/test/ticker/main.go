@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 )
 
@@ -12,5 +13,14 @@ func main() {
 		fmt.Println("err: " + err.Error())
 		return
 	}
-	fmt.Println(resp.Body)
+
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Println("err reading body: " + err.Error())
+		return
+	}
+	fmt.Println(string(body))
+
 }

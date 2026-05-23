@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 
 	"github.com/KyAnhVo/mystock/config"
@@ -14,13 +15,15 @@ import (
 type StockDataHandler struct {
 	dbQuerier    *db.DBQueryMachine
 	apiRequester *http.Client
+	logger       *slog.Logger
 }
 
-func NewStockHandler(dbQuerier *db.DBQueryMachine) *StockDataHandler {
+func NewStockHandler(dbQuerier *db.DBQueryMachine, logger *slog.Logger) *StockDataHandler {
 	client := &http.Client{}
 	return &StockDataHandler{
 		dbQuerier:    dbQuerier,
 		apiRequester: client,
+		logger:       logger,
 	}
 }
 
@@ -57,25 +60,33 @@ func (stockHandler *StockDataHandler) OverviewTicker(w http.ResponseWriter, r *h
 
 	if errors.Is(err, pgx.ErrNoRows) {
 		// if error is "NOT FOUND", we try to query from Massive
+		stockHandler.logger.Warn(
+			"StockDataHandler: OverviewTicker: stock not found in DB",
+			"ticker", ticker,
+		)
 		cfg := config.GetCfg()
 		resp, err := stockHandler.apiRequester.Get(
 			cfg.StockApiHeader +
-				"/v3/reference/ticker/" + ticker +
+				"/v3/reference/tickers/" + ticker +
 				"?apiKey=" + cfg.StockApiKey,
 		)
 		if err != nil {
 			w.WriteHeader(500)
 			fmt.Fprintln(w, "server error")
+			stockHandler.logger.Error(
+				"StockDataHandler: OverviewTicker: cannot reach stock API",
+			)
 			return
 		}
+		defer resp.Body.Close()
 
 		if resp.StatusCode == 200 {
 			// if found, we store it in our db first then return to user.
 			type respContent struct {
-				Ticker      string `json:"ticker"`
-				Name        string `json:"name"`
-				CIK         string `json:"cik"`
-				Description string `json:"description"`
+				Ticker      string  `json:"ticker"`
+				Name        string  `json:"name"`
+				CIK         *string `json:"cik"`
+				Description *string `json:"description"`
 			}
 			var respBody struct {
 				Status string      `json:"status"`
@@ -107,6 +118,7 @@ func (stockHandler *StockDataHandler) OverviewTicker(w http.ResponseWriter, r *h
 
 			// and return the data
 			w.WriteHeader(200)
+			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(respBody.Result)
 		} else {
 			// if not found, just say not found
