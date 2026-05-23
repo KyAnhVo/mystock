@@ -12,11 +12,20 @@ import (
 )
 
 type StockDataHandler struct {
-	dbQuerier    db.DBQueryMachine
+	dbQuerier    *db.DBQueryMachine
 	apiRequester *http.Client
 }
 
+func NewStockHandler(dbQuerier *db.DBQueryMachine) *StockDataHandler {
+	client := &http.Client{}
+	return &StockDataHandler{
+		dbQuerier:    dbQuerier,
+		apiRequester: client,
+	}
+}
+
 // Gets the information of a ticker (must be in US)
+// path: /api/ticker/{ticker}
 func (stockHandler *StockDataHandler) OverviewTicker(w http.ResponseWriter, r *http.Request) {
 	ticker := r.PathValue("ticker")
 	var response struct {
