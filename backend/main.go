@@ -23,20 +23,20 @@ func main() {
 		fmt.Println("logger creation error")
 		os.Exit(1)
 	}
-	auth := handler.NewAuthMiddleware(database, logger)
+	authHandler := handler.NewAuthMiddleware(database, logger)
 	stockHandler := handler.NewStockHandler(database, logger)
-	cors := handler.NewCORSMiddleware()
+	corsHandler := handler.NewCORSMiddleware()
 
 	// Preflight
-	http.HandleFunc("OPTIONS /", cors.Middleware(func(w http.ResponseWriter, r *http.Request) {}))
+	http.HandleFunc("OPTIONS /", corsHandler.Middleware(func(w http.ResponseWriter, r *http.Request) {}))
 
 	// Authentication
-	http.HandleFunc("POST /api/auth/login", cors.Middleware(auth.Login))
-	http.HandleFunc("POST /api/auth/logout", cors.Middleware(auth.Logout))
-	http.HandleFunc("POST /api/auth/signup", cors.Middleware(auth.Signup))
+	http.HandleFunc("POST /api/auth/login", corsHandler.Middleware(authHandler.Login))
+	http.HandleFunc("POST /api/auth/logout", corsHandler.Middleware(authHandler.Logout))
+	http.HandleFunc("POST /api/auth/signup", corsHandler.Middleware(authHandler.Signup))
 
 	// Simple ticker functionalities
-	http.HandleFunc("GET /api/ticker/{ticker}", cors.Middleware(stockHandler.OverviewTicker))
+	http.HandleFunc("GET /api/ticker/{ticker}", corsHandler.Middleware(stockHandler.OverviewTicker))
 
 	// Finally, run it.
 	http.ListenAndServe(cfg.Port, nil)
