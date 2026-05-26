@@ -18,7 +18,7 @@ func NewCORSMiddleware() *CORSMiddleware {
 }
 
 func (c *CORSMiddleware) Middleware(
-	fn func(http.ResponseWriter, *http.Request)
+	fn func(http.ResponseWriter, *http.Request),
 ) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", c.allowedOrigin)
