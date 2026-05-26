@@ -25,14 +25,18 @@ func main() {
 	}
 	auth := handler.NewAuthMiddleware(database, logger)
 	stockHandler := handler.NewStockHandler(database, logger)
+	cors := handler.NewCORSMiddleware()
+
+	// Preflight
+	http.HandleFunc("OPTIONS /", cors.Middleware(func(w http.ResponseWriter, r *http.Request) {}))
 
 	// Authentication
-	http.HandleFunc("POST /api/auth/login", auth.Login)
-	http.HandleFunc("POST /api/auth/logout", auth.Logout)
-	http.HandleFunc("POST /api/auth/signup", auth.Signup)
+	http.HandleFunc("POST /api/auth/login", cors.Middleware(auth.Login))
+	http.HandleFunc("POST /api/auth/logout", cors.Middleware(auth.Logout))
+	http.HandleFunc("POST /api/auth/signup", cors.Middleware(auth.Signup))
 
 	// Simple ticker functionalities
-	http.HandleFunc("GET /api/ticker/{ticker}", stockHandler.OverviewTicker)
+	http.HandleFunc("GET /api/ticker/{ticker}", cors.Middleware(stockHandler.OverviewTicker))
 
 	// Finally, run it.
 	http.ListenAndServe(cfg.Port, nil)
