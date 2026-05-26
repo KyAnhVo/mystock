@@ -137,6 +137,7 @@ func (auth *AuthMiddleware) Login(w http.ResponseWriter, r *http.Request) {
 		Value:    session_token,
 		HttpOnly: true,
 		Secure:   auth.is_secure,
+		MaxAge:   7 * 24 * 60 * 60,
 	})
 	w.WriteHeader(200)
 	auth.logger.Info("AuthMiddleware: Login: success", "address", r.RemoteAddr)
