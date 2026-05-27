@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strconv"
 
 	"github.com/KyAnhVo/mystock/config"
 	"github.com/KyAnhVo/mystock/internal/db"
@@ -28,6 +29,7 @@ func NewStockHandler(dbQuerier *db.DBQueryMachine, logger *slog.Logger) *StockDa
 }
 
 // Gets the information of a ticker (must be in US)
+//
 // path: /api/ticker/{ticker}
 func (stockHandler *StockDataHandler) OverviewTicker(w http.ResponseWriter, r *http.Request) {
 	ticker := r.PathValue("ticker")
@@ -132,4 +134,82 @@ func (stockHandler *StockDataHandler) OverviewTicker(w http.ResponseWriter, r *h
 		w.WriteHeader(500)
 		fmt.Fprintln(w, "server error")
 	}
+}
+
+// Get a bunch of tickers
+//
+// path: /api/tickers?page=<page>&page_size=<page_size>
+func (stockHandler *StockDataHandler) GetTickers(w http.ResponseWriter, r *http.Request) {
+	MAX_PAGE_SIZE := 100
+
+	// Get page, page size, and starting index from query params
+	page, err := strconv.Atoi(r.URL.Query().Get("page"))
+	if err != nil {
+		w.WriteHeader(400)
+		fmt.Fprintln(w, "invalid page")
+		return
+	}
+	pageSize, err := strconv.Atoi(r.URL.Query().Get("page_size"))
+	if err != nil {
+		w.WriteHeader(400)
+		fmt.Fprintln(w, "invalid page_size")
+		return
+	}
+	queryFromIndex := page * pageSize
+	if queryFromIndex < 0 {
+		w.WriteHeader(400)
+		fmt.Fprintln(w, "invalid page")
+		return
+	}
+	if pageSize <= 0 {
+		w.WriteHeader(400)
+		fmt.Fprintln(w, "invalid page_size")
+		return
+	}
+	if pageSize > MAX_PAGE_SIZE {
+		w.WriteHeader(400)
+		fmt.Fprintln(w, "page_size too large, limit to ", MAX_PAGE_SIZE)
+		return
+	}
+
+	type ticker struct {
+		Name   string `json:"name"`
+		Ticker string `json:"ticker"`
+	}
+
+	// query the DB for tickers, starting from the calculated index
+	rows, err := stockHandler.dbQuerier.Querier.Query(
+		r.Context(),
+		"SELECT name, ticker FROM market_data.ticker ORDER BY ticker LIMIT $1 OFFSET $2",
+		pageSize,
+		queryFromIndex,
+	)
+	if err != nil {
+		w.WriteHeader(500)
+		fmt.Fprintln(w, "server error")
+		return
+	}
+	defer rows.Close()
+
+	tickers := make([]ticker, 0, pageSize)
+	for rows.Next() {
+		var item ticker
+		err = rows.Scan(&item.Name, &item.Ticker)
+		if err != nil {
+			w.WriteHeader(500)
+			fmt.Fprintln(w, "server error")
+			return
+		}
+		tickers = append(tickers, item)
+	}
+	if err := rows.Err(); err != nil {
+		w.WriteHeader(500)
+		fmt.Fprintln(w, "server error")
+		return
+	}
+
+	// send all tickers queried from the DB to the client
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	json.NewEncoder(w).Encode(tickers)
 }
