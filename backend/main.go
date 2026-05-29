@@ -24,7 +24,7 @@ func main() {
 		os.Exit(1)
 	}
 	authHandler := handler.NewAuthMiddleware(database, logger)
-	stockHandler := handler.NewStockHandler(database, logger)
+	stockHandler := handler.NewTickerDataHandler(database, logger)
 	corsHandler := handler.NewCORSMiddleware()
 
 	// Preflight
