@@ -34,16 +34,17 @@ func NewStockHandler(dbQuerier *db.DBQueryMachine, logger *slog.Logger) *StockDa
 func (stockHandler *StockDataHandler) OverviewTicker(w http.ResponseWriter, r *http.Request) {
 	ticker := r.PathValue("ticker")
 	var response struct {
-		Ticker      string  `json:"ticker"`
-		Name        string  `json:"name"`
-		CIK         *string `json:"cik"`
-		Description *string `json:"description"`
+		Ticker           string  `json:"ticker"`
+		Name             string  `json:"name"`
+		CIK              *string `json:"cik"`
+		Description      *string `json:"description"`
+		Primary_exchange *string `json:"primary_exchange"`
 	}
 
 	// Find in DB first. If not there, we find via handler.
 	err := stockHandler.dbQuerier.Querier.QueryRow(
 		r.Context(),
-		`SELECT ticker, name, cik, description FROM market_data.ticker
+		`SELECT ticker, name, cik, description, exchange FROM market_data.ticker
  			WHERE ticker = $1 `,
 		ticker,
 	).Scan(
@@ -89,6 +90,7 @@ func (stockHandler *StockDataHandler) OverviewTicker(w http.ResponseWriter, r *h
 				Name        string  `json:"name"`
 				CIK         *string `json:"cik"`
 				Description *string `json:"description"`
+				Exchange    *string `json:"primary_exchange"`
 			}
 			var respBody struct {
 				Status string      `json:"status"`
@@ -111,11 +113,13 @@ func (stockHandler *StockDataHandler) OverviewTicker(w http.ResponseWriter, r *h
 			// Store this in our db
 			_, err := stockHandler.dbQuerier.Querier.Exec(
 				r.Context(),
-				"INSERT INTO market_data.ticker (ticker, name, cik, description) VALUES ($1, $2, $3, $4)",
+				`INSERT INTO market_data.ticker (ticker, name, cik, description, exchange) 
+					VALUES ($1, $2, $3, $4, $5)`,
 				respBody.Result.Ticker,
 				respBody.Result.Name,
 				respBody.Result.CIK,
 				respBody.Result.Description,
+				respBody.Result.Exchange,
 			)
 			if err != nil {
 				stockHandler.logger.Warn("failed to store ticker in db", "error", err)

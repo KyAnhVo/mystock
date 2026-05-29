@@ -2,8 +2,6 @@ package db
 
 import (
 	"context"
-	"os"
-	"strings"
 
 	"github.com/KyAnhVo/mystock/config"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -22,49 +20,4 @@ func Init() (*DBQueryMachine, error) {
 	}
 
 	return &DBQueryMachine{Querier: dbPool}, nil
-}
-
-// Reset the schema using data in ./internal/db/migrations
-func (db *DBQueryMachine) ResetSchema() error {
-	ctx := context.Background()
-	entries, err := os.ReadDir("internal/db/migrations")
-	if err != nil {
-		return err
-	}
-
-	tx, err := db.Querier.Begin(ctx)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback(ctx)
-
-	for _, entry := range entries {
-		if !strings.HasSuffix(entry.Name(), ".down.sql") {
-			continue
-		}
-		content, err := os.ReadFile("./internal/db/migrations/" + entry.Name())
-		if err != nil {
-			return err
-		}
-		_, err = tx.Exec(ctx, string(content))
-		if err != nil {
-			return err
-		}
-	}
-
-	for _, entry := range entries {
-		if !strings.HasSuffix(entry.Name(), ".up.sql") {
-			continue
-		}
-		content, err := os.ReadFile("./internal/db/migrations/" + entry.Name())
-		if err != nil {
-			return err
-		}
-		_, err = tx.Exec(ctx, string(content))
-		if err != nil {
-			return err
-		}
-	}
-
-	return tx.Commit(ctx)
 }

@@ -15,7 +15,14 @@ func main() {
 	err = db.ResetSchema()
 	if err != nil {
 		fmt.Println("cannot reset schema:", err.Error())
-	} else {
-		fmt.Println("reset schema successful")
+		return
 	}
+
+	err = db.GetTickerInfoFromAPI()
+	if err != nil {
+		fmt.Println("cannot populate market_data.info:", err.Error())
+		return
+	}
+
+	fmt.Println("reset schema completed")
 }

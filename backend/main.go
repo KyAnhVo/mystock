@@ -37,11 +37,14 @@ func main() {
 
 	// Simple ticker functionalities
 	http.HandleFunc("GET /api/ticker/{ticker}", corsHandler.Middleware(stockHandler.OverviewTicker))
+	http.HandleFunc("GET /api/ticker", corsHandler.Middleware(stockHandler.GetTickers))
 
 	// Finally, run it.
 	http.ListenAndServe(cfg.Port, nil)
 }
 
+// Create a logging service where we log to backend.log and stdout
+// via Json format.
 func createLoggingHandler() (*slog.Logger, error) {
 	handlerOption := &slog.HandlerOptions{
 		Level:     slog.LevelDebug,

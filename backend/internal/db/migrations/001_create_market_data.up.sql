@@ -1,11 +1,13 @@
 CREATE SCHEMA IF NOT EXISTS market_data;
 
 CREATE TABLE IF NOT EXISTS market_data.ticker (
-  id            BIGSERIAL   PRIMARY KEY,
-  ticker        TEXT        NOT NULL UNIQUE,
-  name          TEXT        NOT NULL,
-  cik           TEXT        UNIQUE,
-  description   TEXT
+  id                BIGSERIAL   PRIMARY KEY,
+  ticker            TEXT        NOT NULL UNIQUE,
+  cik               TEXT,
+
+  name              TEXT        NOT NULL,
+  exchange          TEXT,
+  description       TEXT
 );
 
 CREATE TABLE IF NOT EXISTS market_data.stock (
